@@ -72,6 +72,13 @@ module Gcm
         super("The was an internal error in the GCM server while trying to process the request: '#{message}'")
       end
     end
+
+    # Generic error
+    class GenericServerError < StandardError
+      def initialize(message)
+        super("There was an unspecified error in communicating with GCM server: '#{message}'")
+      end
+    end
   end
 
   Dir.glob(File.join(File.dirname(__FILE__), 'app', 'models', 'gcm', '*.rb')).sort.each do |f|

@@ -35,37 +35,39 @@ class Gcm::Notification < Gcm::Base
           notifications.each do |notification|
             #puts "sending notification #{notification.id} to device #{notification.device.registration_id}"
             response = Gcm::Connection.send_notification(notification, api_key, format)
+            message_data = response[:data].body
             #puts "response: #{response[:code]}; #{response.inspect}"
             if response[:code] == 200
               if format == "json"
                 error = ""
-                message_data = JSON.parse response[:message]
-                success = message_data['success']
-                error = message_data['results'][0]['error']  if success == 0
+                message_data_json = JSON.parse message_data
+                success = message_data_json['success']
+                if success == 0
+                    error = message_data_json['results'][0]['error']
+                end
               else   #format is plain text
-                message_data = response[:message]
-                error = response[:message].split('=')[1]
+                error = message_data.split('=')[1]
               end
 
 
               case error
                 when "MissingRegistration"
-                  ex = Gcm::Errors::MissingRegistration.new(response[:message])
+                  ex = Gcm::Errors::MissingRegistration.new(message_data)
                   logger.warn("#{ex.message}, destroying gcm_device with id #{notification.device.id}")
                   notification.device.destroy
                 when "InvalidRegistration"
-                  ex = Gcm::Errors::InvalidRegistration.new(response[:message])
+                  ex = Gcm::Errors::InvalidRegistration.new(message_data)
                   logger.warn("#{ex.message}, destroying gcm_device with id #{notification.device.id}")
                   notification.device.destroy
                 when "MismatchedSenderId"
-                  ex = Gcm::Errors::MismatchSenderId.new(response[:message])
+                  ex = Gcm::Errors::MismatchSenderId.new(message_data)
                   logger.warn(ex.message)
                 when "NotRegistered"
-                  ex = Gcm::Errors::NotRegistered.new(response[:message])
+                  ex = Gcm::Errors::NotRegistered.new(message_data)
                   logger.warn("#{ex.message}, destroying gcm_device with id #{notification.device.id}")
                   notification.device.destroy
                 when "MessageTooBig"
-                  ex = Gcm::Errors::MessageTooBig.new(response[:message])
+                  ex = Gcm::Errors::MessageTooBig.new(message_data)
                   logger.warn(ex.message)
                 else
                   notification.sent_at = Time.now
@@ -77,8 +79,9 @@ class Gcm::Notification < Gcm::Base
               raise Gcm::Errors::ServiceUnavailable.new(message_data)
             elsif response[:code] == 500
               raise Gcm::Errors::InternalServerError.new(message_data)
+            else
+              raise Gcm::Errors::GenericServerError.new(message_data)
             end
-
           end
         end
       end
